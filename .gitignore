@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 out.txt
 .DS_Store
+report/build/
+report/body.tex

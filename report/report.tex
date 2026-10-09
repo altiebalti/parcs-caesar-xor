@@ -1,0 +1,111 @@
+% Звіт до лабораторної роботи 1: шифр Цезаря та XOR на PARCS-Python у Google Cloud.
+% Збірка: python3 report/build_tex.py (pandoc + xelatex). Тіло звіту генерується з report.md у body.tex.
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{ukrainian}
+\setotherlanguage{english}
+\setmainfont{Times New Roman}
+\setsansfont{Arial}
+\setmonofont{Courier New}[Scale=0.85]
+\newfontfamily\cyrillicfont{Times New Roman}
+\newfontfamily\cyrillicfontsf{Arial}
+\newfontfamily\cyrillicfonttt{Courier New}[Scale=0.85]
+
+\usepackage[a4paper,top=2cm,bottom=2cm,left=2.5cm,right=1.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\emergencystretch=3em
+\tolerance=2000
+\hyphenpenalty=30
+
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{longtable,booktabs,array,calc}
+\usepackage{caption}
+\captionsetup{labelsep=endash,font=small,justification=centering}
+\captionsetup[table]{justification=raggedright,singlelinecheck=false}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage[hidelinks,unicode]{hyperref}
+
+% Українські назви підписів
+\gappto\captionsukrainian{\renewcommand{\figurename}{Рисунок}\renewcommand{\tablename}{Таблиця}}
+\renewcommand{\contentsname}{Зміст}
+
+% Номери розділів уже є в самих заголовках (markdown), тому автоматичну нумерацію вимкнено
+\setcounter{secnumdepth}{-1}
+\setcounter{tocdepth}{2}
+
+% Стиль лістингів (pandoc --listings)
+\definecolor{codebg}{RGB}{245,245,245}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  frame=single,
+  framerule=0pt,
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+  commentstyle=\color{gray}\itshape,
+  keywordstyle=\color{blue!60!black}\bfseries,
+  stringstyle=\color{green!40!black},
+  extendedchars=true,
+  inputencoding=utf8,
+  literate={ʼ}{{'}}1,
+}
+% pandoc створює \passthrough для інлайн-коду з --listings
+\newcommand{\passthrough}[1]{#1}
+
+% Колонтитул
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+% Для таблиць pandoc
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setlength{\LTpre}{6pt}
+\setlength{\LTpost}{6pt}
+
+\begin{document}
+
+% ---------------- Титульна сторінка ----------------
+\begin{titlepage}
+\centering
+\thispagestyle{empty}
+{\large Київський національний університет імені Тараса Шевченка\par}
+{\large Факультет комп'ютерних наук та кібернетики\par}
+\vspace{4cm}
+{\Large\bfseries ЗВІТ ДО ЛАБОРАТОРНОЇ РОБОТИ 1\par}
+\vspace{0.5cm}
+{\large з дисципліни «Хмарні обчислення»\par}
+\vspace{0.5cm}
+{\large на тему: Паралельне шифрування Цезаря та XOR у системі ПАРКС (PARCS-Python) у хмарному середовищі Google Cloud Platform\par}
+\vfill
+\begin{flushright}
+\large
+Студента 4 курсу\\
+групи ТК-41\\
+спеціальності 122 «Комп'ютерні науки»\\
+Тимченка Олександра
+\end{flushright}
+\vfill
+{\large Київ 2026\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\input{body}
+
+\end{document}
