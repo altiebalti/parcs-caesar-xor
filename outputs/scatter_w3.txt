@@ -1,0 +1,18 @@
+=== Caesar / XOR on PARCS-Python ===
+mode=scatter  workers=3  shift=3  key_len=15  block=1048576  repeat=1
+
+Data size    | Time, s    | Avg, s     | Caesar, s  | XOR, s     | Gen, s     | Overhead,s | Check 
+----------------------------------------------------------------------------------------------------
+10000000     | 2.744      | 2.744      | 1.348      | 1.396      | 0.261      | 0.000      | PASSED
+50000000     | 16.945     | 16.945     | 7.843      | 9.102      | 1.255      | 0.000      | PASSED
+100000000    | 34.930     | 34.930     | 16.526     | 18.404     | 2.620      | 0.000      | PASSED
+
+Fingerprints (must be identical in every mode for the same size):
+  10000000     caesar=c66aea844affbc949cae69516735fa2d  xor=59b932fdc5b42a84d6a56362cc4a91dd
+  50000000     caesar=ced777edc1fe6daf0ed5a8bf23db98fa  xor=c6d0e175008e965fa161b0d198519ffe
+  100000000    caesar=4e0e8be3e8bb67b6b0ddf7db719f618e  xor=786f581151c23bfb053cbcbc1ba75206
+
+# CSV: mode,workers,size,time,time_avg,caesar,xor,gen,overhead,check
+CSV,scatter,3,10000000,2.7435,2.7435,1.3477,1.3959,0.2612,0.0000,PASSED
+CSV,scatter,3,50000000,16.9447,16.9447,7.8430,9.1018,1.2555,0.0000,PASSED
+CSV,scatter,3,100000000,34.9297,34.9297,16.5256,18.4041,2.6204,0.0000,PASSED

@@ -1,5 +1,4 @@
 __pycache__/
 *.pyc
-outputs/
 out.txt
 .DS_Store
