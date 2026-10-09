@@ -1,21 +1,6 @@
 #!/usr/bin/env bash
-# Кластер PARCS-Python у Google Compute Engine (запускати в Cloud Shell).
-#
-#   bash cluster.sh up [N]    - firewall, master і N воркерів (за замовчуванням 4), чекає готовності
-#   bash cluster.sh ip        - зовнішня IP-адреса майстра
-#   bash cluster.sh status    - VM і скільки воркерів підключено до майстра
-#   bash cluster.sh allow     - оновити firewall, якщо змінилася IP Cloud Shell або ваша
-#   bash cluster.sh fix-firewall - відкрити порти host-firewall COS на вже створених VM
-#   bash cluster.sh stop      - зупинити VM (кредит не витрачається на CPU), дані лишаються
-#   bash cluster.sh start     - запустити знову (IP майстра зміниться)
-#   bash cluster.sh down      - видалити VM і правило firewall
-#
-# Змінні: ZONE (europe-north1-a), MACHINE (n1-standard-1), MY_IP - IP вашого браузера,
-# щоб відкривати веб-інтерфейс PARCS (дізнатися: https://ifconfig.me).
-#
-# Чому не create-with-container з офіційного гайду: у gcloud цей спосіб позначено як
-# deprecated. Тут те саме зроблено напряму: Container-Optimized OS + docker run у
-# startup-script, з тим самим образом hummer12007/parcs-node і мережею хоста.
+# кластер PARCS в GCE: up [N] | status | ip | allow | fix-firewall | stop | start | down
+# ZONE, MACHINE, MY_IP (свій ip для веб-морди) можна передати змінними
 set -euo pipefail
 
 ZONE=${ZONE:-europe-north1-a}
@@ -56,14 +41,12 @@ source_ranges() {
   echo "$ranges"
 }
 
-startup_script() {   # $1 = PARCS_ARGS
+startup_script() {
   local f
   f=$(mktemp)
-  # Host-firewall Container-Optimized OS пропускає лише SSH, тому відкриваємо:
-  #  - увесь TCP з внутрішньої мережі VPC (Flask і Pyro4 на воркерах слухають випадкові порти);
-  #  - порт 8080 (веб-інтерфейс майстра; зовні його і так обмежує правило GCP parcs-web).
   cat > "$f" <<EOF
 #!/bin/bash
+# COS за замовчуванням пускає тільки ssh
 iptables -w -C INPUT -p tcp -s 10.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -w -I INPUT -p tcp -s 10.0.0.0/8 -j ACCEPT
 iptables -w -C INPUT -p tcp --dport 8080 -j ACCEPT 2>/dev/null || iptables -w -I INPUT -p tcp --dport 8080 -j ACCEPT
 docker start parcs 2>/dev/null || \\
@@ -73,7 +56,7 @@ EOF
   echo "$f"
 }
 
-create_vms() {   # $1 = PARCS_ARGS, $2 = мітка мережі (або ""), далі імена VM
+create_vms() {
   local args=$1 tags=$2 script
   shift 2
   script=$(startup_script "$args")
@@ -145,7 +128,7 @@ case "$cmd" in
   allow)
     gcloud compute firewall-rules update "$RULE" --source-ranges="$(source_ranges)"
     ;;
-  fix-firewall)   # відкрити порти на вже створених VM (host-firewall COS), без перестворення
+  fix-firewall)
     for vm in $(gcloud compute instances list --filter="labels.app=$LABEL" --format='value(name)'); do
       echo "== $vm"
       gcloud compute ssh "$vm" --zone "$ZONE" --quiet --command \
@@ -156,7 +139,6 @@ case "$cmd" in
   stop|start)
     names=$(gcloud compute instances list --filter="labels.app=$LABEL" --format='value(name)')
     if [ -n "$names" ]; then
-      # shellcheck disable=SC2086
       gcloud compute instances "$cmd" $names --zone "$ZONE"
     fi
     if [ "$cmd" = start ]; then
@@ -166,13 +148,12 @@ case "$cmd" in
   down)
     names=$(gcloud compute instances list --filter="labels.app=$LABEL" --format='value(name)')
     if [ -n "$names" ]; then
-      # shellcheck disable=SC2086
       gcloud compute instances delete $names --zone "$ZONE" --quiet
     fi
     gcloud compute firewall-rules delete "$RULE" --quiet 2>/dev/null || true
     echo "Кластер видалено."
     ;;
   *)
-    sed -n '2,13p' "$0"
+    sed -n '2,3p' "$0"
     ;;
 esac

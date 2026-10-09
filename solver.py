@@ -1,25 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-PARCS-Python: паралельне шифрування шифром Цезаря та XOR.
-
-Порт MPI-версії (serial.cpp / parallel.cpp) на платформу PARCS-Python
-(https://github.com/Hummer12007/parcs-python). Сумісний з Python 2.7
-(саме він у Docker-образі hummer12007/parcs-node) і з Python 3.
-
-Режими (рядок mode=... у вхідному файлі):
-  serial  - послідовний алгоритм, усе рахує майстер, воркери не використовуються;
-  local   - кожен воркер сам генерує свою частину тексту (дані "лежать" на вузлі),
-            шифрує/розшифровує її і повертає лише контрольні суми;
-  scatter - дослівний порт MPI-версії: майстер генерує весь текст, розсилає шматки
-            воркерам (як MPI_Scatterv), збирає результат (як MPI_Gatherv).
-
-Текст генерується блоками фіксованого розміру, кожен блок - зі свого зерна
-(seed, номер блоку), тому дані однакові за будь-якої кількості воркерів, а
-"відбитки" шифротексту (fp) мають збігатися в усіх режимах.
-
-Локальний запуск (воркери імітуються процесами):
-    python solver.py input.txt output.txt --workers 4
-"""
+# Цезар + XOR на PARCS-Python. Python 2.7 (такий в образі parcs-node) і 3.
 from __future__ import print_function, division
 
 import base64
@@ -31,45 +11,42 @@ import time
 
 try:
     from Pyro4 import expose
-except ImportError:  # локальний запуск без Pyro4
+except ImportError:
     def expose(f):
         return f
 
 PY2 = sys.version_info[0] == 2
 if PY2:
-    range = xrange  # noqa: F821
+    range = xrange
 
 DEFAULTS = {
     'mode': 'local',
     'sizes': '100000000',
-    'workers': '0',          # 0 = усі воркери, що є в PARCS
+    'workers': '0',
     'shift': '3',
     'key': 'SecretKey123!@#',
     'seed': '2026',
-    'block': '1048576',      # розмір блоку генерації/обробки, байт
-    'repeat': '1',           # скільки разів повторити кожен замір
+    'block': '1048576',
+    'repeat': '1',
 }
 
 
-# ----------------------------------------------------------------------------
-# Базові операції (виконуються і на майстрі, і на воркерах)
-# ----------------------------------------------------------------------------
-
 def make_table(fn):
-    """Таблиця перекодування байтів 0..255 для str/bytes.translate()."""
+    \
     return bytes(bytearray(fn(b) % 256 for b in range(256)))
 
 
-PRINTABLE = make_table(lambda b: 32 + b % 95)   # байт -> друкований символ 32..126
+PRINTABLE = make_table(lambda b: 32 + b % 95)
 
 
 def caesar_tables(shift):
-    """Таблиці шифрування та розшифрування Цезаря: (b + shift) % 256 і (b - shift) % 256."""
+    \
     return make_table(lambda b: b + shift), make_table(lambda b: b - shift)
 
 
+# текст генерується блоками, кожен блок зі свого seed - тому дані однакові при будь-якій кількості воркерів
 def gen_block(seed, idx, n):
-    """Випадковий друкований текст довжини n для блоку idx (детерміновано, Mersenne Twister)."""
+    \
     if n <= 0:
         return b''
     rng = random.Random(seed * 1000003 + idx)
@@ -78,14 +55,15 @@ def gen_block(seed, idx, n):
 
 
 def keystream(key, offset, n):
-    """Ключ XOR, повторений до довжини n, починаючи з глобальної позиції offset."""
+    \
     s = offset % len(key)
     rotated = key[s:] + key[:s]
     return (rotated * (n // len(key) + 1))[:n]
 
 
+# xor через великі int, бо numpy в образі немає, а цикл по байтах в python занадто повільний
 def xor_bytes(data, key, offset):
-    """data[i] ^ key[(offset + i) % len(key)] для всього шматка (через довгу арифметику)."""
+    \
     n = len(data)
     if n == 0:
         return data
@@ -98,12 +76,13 @@ def md5hex(data):
 
 
 def fingerprint(digests):
-    """Один відбиток для всього шифротексту з md5 окремих блоків (у порядку блоків)."""
+    \
     return md5hex(''.join(digests).encode('ascii'))
 
 
+# pyro4 (serpent) не любить bytes, ганяємо base64
 def to_wire(data):
-    """bytes -> ASCII-рядок для передачі через Pyro4 (серіалізатор serpent)."""
+    \
     s = base64.b64encode(data)
     return s if PY2 else s.decode('ascii')
 
@@ -121,12 +100,13 @@ def as_bytes(s):
 
 
 def value(result):
-    """Результат асинхронного виклику Pyro4 (FutureResult.value) або звичайне значення."""
+    \
     return result.value if hasattr(result, 'value') else result
 
 
+# розподіл як у parallel.cpp
 def split_counts(total, parts):
-    """Як у parallel.cpp: count_i = rest / (parts - i); повертає (counts, displs)."""
+    \
     counts, displs, rest, pos = [], [], total, 0
     for i in range(parts):
         c = rest // (parts - i)
@@ -137,9 +117,9 @@ def split_counts(total, parts):
     return counts, displs
 
 
+# один і той самий код для serial (на майстрі) і local (на воркері)
 def process_blocks(seed, first, count, block, size, shift, key):
-    """Згенерувати блоки [first, first+count), зашифрувати і розшифрувати Цезарем та XOR,
-    перевірити результат. Повертає статистику і md5 кожного зашифрованого блоку."""
+    \
     enc_t, dec_t = caesar_tables(shift)
     t = {'gen': 0.0, 'caesar': 0.0, 'xor': 0.0, 'verify': 0.0}
     caesar_ok = xor_ok = True
@@ -176,17 +156,12 @@ def process_blocks(seed, first, count, block, size, shift, key):
             'caesar_digests': c_digests, 'xor_digests': x_digests, 'times': t}
 
 
-# ----------------------------------------------------------------------------
-# Solver - клас, який завантажує PARCS (на майстрі з воркерами, на воркерах без аргументів)
-# ----------------------------------------------------------------------------
-
 class Solver:
     def __init__(self, workers=None, input_file_name=None, output_file_name=None):
         self.input_file_name = input_file_name
         self.output_file_name = output_file_name
         self.workers = workers
 
-    # ---------------- майстер ----------------
 
     def solve(self):
         cfg = self.read_input()
@@ -220,15 +195,16 @@ class Solver:
         print('Job finished')
 
     def run_serial(self, cfg, size):
-        """Послідовний алгоритм: той самий конвеєр, що в режимі local, але на одній машині."""
+        \
         nblocks = -(-size // cfg['block'])
         start = time.time()
         r = process_blocks(cfg['seed'], 0, nblocks, cfg['block'], size, cfg['shift'], cfg['key'])
         wall = time.time() - start
         return self.summary('serial', 1, size, wall, [r])
 
+    # дані лежать на воркерах, по мережі тільки параметри і md5
     def run_local(self, cfg, size, workers):
-        """Кожен воркер обробляє свій діапазон блоків; по мережі йдуть лише параметри і контрольні суми."""
+        \
         k = len(workers)
         nblocks = -(-size // cfg['block'])
         bounds = [nblocks * i // k for i in range(k + 1)]
@@ -244,13 +220,14 @@ class Solver:
         wall = time.time() - start
         return self.summary('local', k, size, wall, parts)
 
+    # порт MPI версії: майстер розсилає текст і збирає назад (Scatterv/Gatherv)
     def run_scatter(self, cfg, size, workers):
-        """Порт parallel.cpp: Scatterv -> шифрування -> Gatherv -> Scatterv -> розшифрування -> Gatherv."""
+        \
         k = len(workers)
         block, seed, shift, key = cfg['block'], cfg['seed'], cfg['shift'], cfg['key']
         nblocks = -(-size // block)
 
-        # генерація даних на майстрі (як і в MPI-версії, не входить у виміряний час)
+
         t0 = time.time()
         text = b''.join(gen_block(seed, i, min(block, size - i * block)) for i in range(nblocks))
         t_gen = time.time() - t0
@@ -274,7 +251,7 @@ class Solver:
         x_dec = scatter_gather('xor_chunk', x_enc, lambda i: (key_wire, displs[i]))
         t_xor = time.time() - start
 
-        # перевірка і відбитки (не входять у виміряний час, як і в MPI-версії)
+
         t0 = time.time()
         part = {
             'first': 0, 'count': nblocks, 'bytes': size,
@@ -308,8 +285,8 @@ class Solver:
             'fp_caesar': fingerprint(c_digests), 'fp_xor': fingerprint(x_digests),
         }
 
-    # ---------------- воркер ----------------
 
+    # --- те, що викликається на воркерах ---
     @staticmethod
     @expose
     def process_range(seed, first, count, block, size, shift, key_wire):
@@ -326,7 +303,6 @@ class Solver:
     def xor_chunk(chunk_wire, key_wire, offset):
         return to_wire(xor_bytes(from_wire(chunk_wire), from_wire(key_wire), offset))
 
-    # ---------------- ввід / вивід ----------------
 
     def read_input(self):
         cfg = dict(DEFAULTS)
@@ -337,7 +313,7 @@ class Solver:
                     continue
                 name, val = line.split('=', 1)
                 name = name.strip().lower()
-                # у ключі XOR може бути '#', тому коментарі після значення знімаємо для всіх, крім key
+
                 cfg[name] = val.strip() if name == 'key' else val.split('#', 1)[0].strip()
         out = {
             'mode': cfg['mode'].lower(),
@@ -386,10 +362,7 @@ def format_report(cfg, rows):
     return '\n'.join(lines)
 
 
-# ----------------------------------------------------------------------------
-# Локальний запуск без PARCS: воркери імітуються окремими процесами
-# ----------------------------------------------------------------------------
-
+# локальний запуск без PARCS, воркери = процеси
 def _call(name, args):
     return getattr(Solver, name)(*args)
 

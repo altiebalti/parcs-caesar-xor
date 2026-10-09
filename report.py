@@ -1,24 +1,10 @@
-# -*- coding: utf-8 -*-
-"""
-Збирає результати з output-файлів PARCS у таблицю і графіки для звіту.
-
-    python report.py outputs/*.txt          # або папка: python report.py outputs/
-
-Створює поруч: results.csv, summary.md, local_time.png, local_speedup.png
-(і scatter_*.png, якщо є запуски в режимі scatter). Потрібен matplotlib (Python 3).
-
-Прискорення:
-  local   S = T_serial(Time) / T_local(Time)               - увесь конвеєр, як є
-  scatter S = (T_serial(Caesar) + T_serial(XOR)) / T_scatter - як у таблиці MPI-версії
-Ефективність E = S / кількість воркерів.
-"""
 import csv
 import glob
 import os
 import sys
 
 FIELDS = ['mode', 'workers', 'size', 'time', 'time_avg', 'caesar', 'xor', 'gen', 'overhead', 'check']
-COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100']   # фіксований порядок серій
+COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100']
 MARKERS = ['o', 's', '^', 'D']
 INK, MUTED, GRID, SURFACE = '#0b0b0b', '#52514e', '#e4e3df', '#fcfcfb'
 
@@ -98,7 +84,7 @@ def plot(rows, mode, outdir):
     workers = sorted({r['workers'] for r in rows if r['mode'] == mode})
     files = []
 
-    # 1) час: перша точка - послідовний алгоритм, далі 1..N воркерів
+
     fig, ax = plt.subplots(figsize=(7, 4.2), facecolor=SURFACE)
     xs_labels = ['посл.'] + [str(w) for w in workers]
     for i, size in enumerate(sizes):
@@ -120,7 +106,7 @@ def plot(rows, mode, outdir):
     plt.close(fig)
     files.append(path)
 
-    # 2) прискорення з ідеальною лінією S = p
+
     fig, ax = plt.subplots(figsize=(7, 4.2), facecolor=SURFACE)
     ax.plot(workers, workers, color=MUTED, linestyle='--', linewidth=1.2, label='ідеальне (S = p)')
     for i, size in enumerate(sizes):

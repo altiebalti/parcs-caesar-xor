@@ -1,6 +1,0 @@
-# Послідовний алгоритм для порівняння з режимом scatter (ті самі обсяги, що в scatter_w*.txt)
-mode=serial
-sizes=10000000, 50000000, 100000000
-shift=3
-key=SecretKey123!@#
-seed=2026
