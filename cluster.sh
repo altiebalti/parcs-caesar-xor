@@ -5,6 +5,7 @@
 #   bash cluster.sh ip        - зовнішня IP-адреса майстра
 #   bash cluster.sh status    - VM і скільки воркерів підключено до майстра
 #   bash cluster.sh allow     - оновити firewall, якщо змінилася IP Cloud Shell або ваша
+#   bash cluster.sh fix-firewall - відкрити порти host-firewall COS на вже створених VM
 #   bash cluster.sh stop      - зупинити VM (кредит не витрачається на CPU), дані лишаються
 #   bash cluster.sh start     - запустити знову (IP майстра зміниться)
 #   bash cluster.sh down      - видалити VM і правило firewall
@@ -58,8 +59,13 @@ source_ranges() {
 startup_script() {   # $1 = PARCS_ARGS
   local f
   f=$(mktemp)
+  # Host-firewall Container-Optimized OS пропускає лише SSH, тому відкриваємо:
+  #  - увесь TCP з внутрішньої мережі VPC (Flask і Pyro4 на воркерах слухають випадкові порти);
+  #  - порт 8080 (веб-інтерфейс майстра; зовні його і так обмежує правило GCP parcs-web).
   cat > "$f" <<EOF
 #!/bin/bash
+iptables -w -C INPUT -p tcp -s 10.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -w -I INPUT -p tcp -s 10.0.0.0/8 -j ACCEPT
+iptables -w -C INPUT -p tcp --dport 8080 -j ACCEPT 2>/dev/null || iptables -w -I INPUT -p tcp --dport 8080 -j ACCEPT
 docker start parcs 2>/dev/null || \\
   docker run -d --name parcs --restart=always --network=host \\
     -e PARCS_ARGS="$1" $IMAGE
@@ -139,6 +145,14 @@ case "$cmd" in
   allow)
     gcloud compute firewall-rules update "$RULE" --source-ranges="$(source_ranges)"
     ;;
+  fix-firewall)   # відкрити порти на вже створених VM (host-firewall COS), без перестворення
+    for vm in $(gcloud compute instances list --filter="labels.app=$LABEL" --format='value(name)'); do
+      echo "== $vm"
+      gcloud compute ssh "$vm" --zone "$ZONE" --quiet --command \
+        'sudo iptables -w -I INPUT -p tcp -s 10.0.0.0/8 -j ACCEPT; sudo iptables -w -I INPUT -p tcp --dport 8080 -j ACCEPT'
+    done
+    echo "Воркери перепідключаться самі протягом 1-2 хв: bash cluster.sh status"
+    ;;
   stop|start)
     names=$(gcloud compute instances list --filter="labels.app=$LABEL" --format='value(name)')
     if [ -n "$names" ]; then
@@ -159,6 +173,6 @@ case "$cmd" in
     echo "Кластер видалено."
     ;;
   *)
-    sed -n '2,12p' "$0"
+    sed -n '2,13p' "$0"
     ;;
 esac
