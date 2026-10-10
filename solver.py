@@ -32,7 +32,6 @@ DEFAULTS = {
 
 
 def make_table(fn):
-    \
     return bytes(bytearray(fn(b) % 256 for b in range(256)))
 
 
@@ -40,13 +39,11 @@ PRINTABLE = make_table(lambda b: 32 + b % 95)
 
 
 def caesar_tables(shift):
-    \
     return make_table(lambda b: b + shift), make_table(lambda b: b - shift)
 
 
 # текст генерується блоками, кожен блок зі свого seed - тому дані однакові при будь-якій кількості воркерів
 def gen_block(seed, idx, n):
-    \
     if n <= 0:
         return b''
     rng = random.Random(seed * 1000003 + idx)
@@ -55,7 +52,6 @@ def gen_block(seed, idx, n):
 
 
 def keystream(key, offset, n):
-    \
     s = offset % len(key)
     rotated = key[s:] + key[:s]
     return (rotated * (n // len(key) + 1))[:n]
@@ -63,7 +59,6 @@ def keystream(key, offset, n):
 
 # xor через великі int, бо numpy в образі немає, а цикл по байтах в python занадто повільний
 def xor_bytes(data, key, offset):
-    \
     n = len(data)
     if n == 0:
         return data
@@ -76,13 +71,11 @@ def md5hex(data):
 
 
 def fingerprint(digests):
-    \
     return md5hex(''.join(digests).encode('ascii'))
 
 
 # pyro4 (serpent) не любить bytes, ганяємо base64
 def to_wire(data):
-    \
     s = base64.b64encode(data)
     return s if PY2 else s.decode('ascii')
 
@@ -100,13 +93,11 @@ def as_bytes(s):
 
 
 def value(result):
-    \
     return result.value if hasattr(result, 'value') else result
 
 
 # розподіл як у parallel.cpp
 def split_counts(total, parts):
-    \
     counts, displs, rest, pos = [], [], total, 0
     for i in range(parts):
         c = rest // (parts - i)
@@ -119,7 +110,6 @@ def split_counts(total, parts):
 
 # один і той самий код для serial (на майстрі) і local (на воркері)
 def process_blocks(seed, first, count, block, size, shift, key):
-    \
     enc_t, dec_t = caesar_tables(shift)
     t = {'gen': 0.0, 'caesar': 0.0, 'xor': 0.0, 'verify': 0.0}
     caesar_ok = xor_ok = True
@@ -195,7 +185,6 @@ class Solver:
         print('Job finished')
 
     def run_serial(self, cfg, size):
-        \
         nblocks = -(-size // cfg['block'])
         start = time.time()
         r = process_blocks(cfg['seed'], 0, nblocks, cfg['block'], size, cfg['shift'], cfg['key'])
@@ -204,7 +193,6 @@ class Solver:
 
     # дані лежать на воркерах, по мережі тільки параметри і md5
     def run_local(self, cfg, size, workers):
-        \
         k = len(workers)
         nblocks = -(-size // cfg['block'])
         bounds = [nblocks * i // k for i in range(k + 1)]
@@ -222,7 +210,6 @@ class Solver:
 
     # порт MPI версії: майстер розсилає текст і збирає назад (Scatterv/Gatherv)
     def run_scatter(self, cfg, size, workers):
-        \
         k = len(workers)
         block, seed, shift, key = cfg['block'], cfg['seed'], cfg['shift'], cfg['key']
         nblocks = -(-size // block)
